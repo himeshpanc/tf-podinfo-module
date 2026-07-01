@@ -17,8 +17,6 @@ variable "replicas" {
   default = 1
 }
 
-# The podinfo version this MODULE TAG ships. Each git tag of this module pins a
-# version; promoting = bumping the module ref (Kargo's hcl-update does this).
 locals {
   image = "ghcr.io/stefanprodan/podinfo:6.14.0"
 }
@@ -29,11 +27,35 @@ resource "kubernetes_namespace" "tenant" {
   }
 }
 
+# --- Secret wiring: pull tenant config from the OpenBao hub via External-Secrets ---
+resource "kubernetes_manifest" "podinfo_config" {
+  manifest = {
+    apiVersion = "external-secrets.io/v1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "podinfo-config"
+      namespace = kubernetes_namespace.tenant.metadata[0].name
+    }
+    spec = {
+      refreshInterval = "15s"
+      secretStoreRef  = { name = "openbao", kind = "ClusterSecretStore" }
+      target          = { name = "podinfo-config", creationPolicy = "Owner" }
+      data = [
+        { secretKey = "greeting", remoteRef = { key = "tenant-config", property = "greeting" } },
+      ]
+    }
+  }
+}
+
 resource "kubernetes_deployment" "podinfo" {
   metadata {
     name      = "podinfo"
     namespace = kubernetes_namespace.tenant.metadata[0].name
     labels    = { app = "podinfo" }
+    annotations = {
+      # Reloader restarts this Deployment when the referenced Secret changes.
+      "reloader.stakater.com/auto" = "true"
+    }
   }
   spec {
     replicas = var.replicas
@@ -48,6 +70,17 @@ resource "kubernetes_deployment" "podinfo" {
         container {
           name  = "podinfo"
           image = local.image
+          # The greeting shown at "/" comes from the OpenBao-synced secret.
+          env {
+            name = "PODINFO_UI_MESSAGE"
+            value_from {
+              secret_key_ref {
+                name     = "podinfo-config"
+                key      = "greeting"
+                optional = true
+              }
+            }
+          }
           port {
             container_port = 9898
             name           = "http"
@@ -73,7 +106,7 @@ resource "kubernetes_deployment" "podinfo" {
 resource "kubernetes_service" "podinfo" {
   metadata {
     name      = "podinfo"
-    namespace = var.namespace
+    namespace = kubernetes_namespace.tenant.metadata[0].name
     labels    = { app = "podinfo" }
   }
   spec {
