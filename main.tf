@@ -20,7 +20,7 @@ variable "replicas" {
 # The podinfo version this MODULE TAG ships. Each git tag of this module pins a
 # version; promoting = bumping the module ref (Kargo's hcl-update does this).
 locals {
-  image = "ghcr.io/stefanprodan/podinfo:6.13.0"
+  image = "ghcr.io/stefanprodan/podinfo:6.14.0"
 }
 
 resource "kubernetes_namespace" "tenant" {
