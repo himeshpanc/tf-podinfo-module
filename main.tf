@@ -51,7 +51,7 @@ resource "kubernetes_deployment" "podinfo" {
   metadata {
     name      = "podinfo"
     namespace = kubernetes_namespace.tenant.metadata[0].name
-    labels    = { app = "podinfo", "app.kubernetes.io/version" = "6.18.0" }
+    labels    = { app = "podinfo", "app.kubernetes.io/version" = "6.19.0" }
     annotations = {
       # Reloader restarts this Deployment when the referenced Secret changes.
       "reloader.stakater.com/auto" = "true"
